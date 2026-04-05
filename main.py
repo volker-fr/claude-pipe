@@ -130,39 +130,38 @@ class ClaudePipe:
     @staticmethod
     def _extract_response(output: str, sent_message: str) -> str:
         lines = output.split("\n")
-        needle = sent_message[:60]
-        start_idx = -1
+
+        # Find end of echoed prompt: last line where END_MARKER appears inline
+        # (the echoed instruction text, NOT the standalone marker from the response)
+        prompt_end = -1
         for i, line in enumerate(lines):
-            if needle in line:
-                start_idx = i
+            if END_MARKER in line and line.strip() != END_MARKER:
+                prompt_end = i
+
+        # Find the standalone END_MARKER (response terminator)
+        response_end = len(lines)
+        for i in range(len(lines) - 1, -1, -1):
+            if lines[i].strip() == END_MARKER:
+                response_end = i
                 break
 
-        if start_idx == -1:
-            return output.strip()
-
-        tail = lines[start_idx + 1:]
-        cleaned: List[str] = []
-        response_started = False
-        for line in tail:
-            stripped = line.strip()
-            if stripped == END_MARKER:
-                break
-            if END_MARKER in stripped:
-                line = line.replace(END_MARKER, "").rstrip()
-                stripped = line.strip()
-                if not stripped:
+        # Fallback: try first-60-chars needle if no inline marker found
+        if prompt_end == -1:
+            needle = sent_message[:60]
+            for i, line in enumerate(lines):
+                if needle in line:
+                    prompt_end = i
                     break
-            if not response_started:
-                if stripped.startswith(("●", "⏿", "⎇")) or \
-                   (stripped and not stripped.endswith(")")):
-                    response_started = True
-                else:
-                    continue
-            cleaned.append(line)
 
+        start = prompt_end + 1 if prompt_end >= 0 else 0
+        cleaned = lines[start:response_end]
+
+        # Trim leading/trailing empty lines and UI noise
         noise = {"", PROMPT_CHAR, f"{PROMPT_CHAR} ", "? for", "shortcuts", "? for shortcuts"}
         while cleaned and (cleaned[-1].strip() in noise or set(cleaned[-1].strip()) <= {"\u2500", " "}):
             cleaned.pop()
+        while cleaned and not cleaned[0].strip():
+            cleaned.pop(0)
 
         return "\n".join(cleaned)
 

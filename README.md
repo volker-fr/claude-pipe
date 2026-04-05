@@ -58,11 +58,12 @@ claude-pipe -v "list all files"
 
 ## How it works
 
-1. Connects to tmux session `0` (creates it if needed)
+1. Connects to tmux session `claude-pipe` (creates it if needed)
 2. Starts the AI agent if not already running
 3. Sends `/clear` to reset conversation context to reduce token cost
-4. Sends the prompt and waits for completion (end marker + idle detection)
-5. Strips CLI chrome (bullets, decoration) and prints clean text to stdout
+4. Appends an end-marker instruction to the prompt and sends it
+5. Waits for completion (end marker + idle detection)
+6. Extracts the response between the echoed prompt and the end marker, strips CLI chrome (bullets, decoration), and prints clean text to stdout
 
 stderr gets errors only (or status messages with `-v`). stdout is always clean output, safe to pipe.
 
@@ -81,6 +82,11 @@ Edit constants at the top of `main.py`:
 The following two tools do not need a wrapper:
 - Gemini: `echo 2+2|gemini` works
 - copilot: `echo "say hello in 5 lines" | copilot 2>&1 | python3 -c "import sys; print(sys.stdin.read().split('\n\nTotal usage est:')[0])"`
+
+## Changelog
+
+### 2026-02-15
+- Fixed response extraction for long prompts. Previous heuristic (first 60 chars needle + `response_started` flag) failed when tmux line-wrapped the prompt, causing echoed prompt text to leak into the output. Now anchors on the inline `===PIPE_END===` instruction echo to reliably find where the prompt ends and the response begins.
 
 ## Requirements
 
